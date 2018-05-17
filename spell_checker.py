@@ -157,3 +157,156 @@ print('Palabra: ', chosen_word)
 #print('Modelo de Lenguaje - Tamaño: ', total_words_in_language_model)
 print('Modelo de Lenguaje - Frecuencia de la palabra: ', chosen_word_frequency)
 print('Modelo de Lenguaje - Probabilidad de la palabra: ', chosen_word_probability)
+
+
+
+
+
+letters = 'abcdefghijklmnopqrstuvwxyz'
+delete_matrix = [[0 for i in range(len(letters))] for j in range(len(letters))]
+transpose_matrix = [[0 for i in range(len(letters))] for j in range(len(letters))]
+substitution_matrix = [[0 for i in range(len(letters))] for j in range(len(letters))]
+insert_matrix = [[0 for i in range(len(letters))] for j in range(len(letters))]
+
+def get_splits(word):
+    splits = []
+
+    for i in range(len(word) + 1):
+        splits.append((word[:i], word[i:]))
+    #print('Splits ({}): {}'.format(len(splits), splits))
+
+    return splits
+
+def get_delete_candidates_info(splits):
+    deletes = []
+
+    for left, right in splits:
+        if right:
+            if len(left) > 0:
+                word_with_delete = left + right[1:]
+                x = left[-1:]
+                y = right[0]
+                #print(x, y)
+
+                deletes.append(word_with_delete)
+
+                # ignore vowels with accents and other characters not in 'letters'
+                if letters.find(x) >= 0 and letters.find(y) >= 0:
+                    delete_matrix[letters.find(x)][letters.find(y)] += 1
+
+    #print('Deletes ({}): {}'.format(len(deletes), deletes))
+    #print('delete_matrix:', delete_matrix)
+
+    return deletes
+
+
+def get_transpose_candidates_info(splits):
+    transposes = []
+
+    for left, right in splits:
+        if len(right) > 1:
+            word_with_transpose = left + right[1] + right[0] + right[2:]
+            x = right[0]
+            y = right[1]
+            #print(x, y)
+
+            transposes.append(word_with_transpose)
+
+            # ignore vowels with accents and other characters not in 'letters'
+            if letters.find(x) >= 0 and letters.find(y) >= 0:
+                transpose_matrix[letters.index(x)][letters.index(y)] += 1
+
+    #print('Transposes ({}): {}'.format(len(transposes), transposes))
+    #print('transpose_matrix:', delete_matrix)
+
+    return transposes
+
+
+def get_substitution_candidates_info(splits):
+    substitutions = []
+
+    for left, right in splits:
+        if right:
+            for char in letters:
+                word_with_substitution = left + char + right[1:]
+                x = char
+                y = right[0]
+                #print(x, y)
+
+                substitutions.append(word_with_substitution)
+
+                # ignore vowels with accents and other characters not in 'letters'
+                if letters.find(x) >= 0 and letters.find(y) >= 0:
+                    substitution_matrix[letters.index(x)][letters.index(y)] += 1
+
+    #print('Substitutions ({}): {}'.format(len(substitutions), substitutions))
+    #print('substitution_matrix:', substitution_matrix)
+
+    return substitutions
+
+
+def get_insert_candidates_info(splits):
+    inserts = []
+
+    for left, right in splits:
+        for char in letters:
+            if left:
+                word_with_insert = left + char + right
+                x = left[-1:]
+                y = char
+                #print(x, y)
+
+                inserts.append(word_with_insert)
+
+                # ignore vowels with accents and other characters not in 'letters'
+                if letters.find(x) >= 0 and letters.find(y) >= 0:
+                    insert_matrix[letters.index(x)][letters.index(y)] += 1
+
+    #print('Inserts ({}): {}'.format(len(inserts), inserts))
+    #print('insert_matrix:', insert_matrix)
+
+    return inserts
+
+
+'''
+word = 'casa'
+word_splits = get_splits(word)
+word_error_candidates = get_delete_candidates_info(word_splits) + get_transpose_candidates_info(word_splits) + \
+                        get_substitution_candidates_info(word_splits) + get_insert_candidates_info(word_splits)
+
+print('Word "{}" error candidates({}): {}'.format(word, len(word_error_candidates), word_error_candidates))
+'''
+
+load_dictionary()
+print(len(words_in_dict))
+
+with open('spelling_error_candidates.txt', 'w') as spelling_error_candidates:
+    i = 0
+    for word_in_dict in words_in_dict:
+        word_splits = get_splits(word_in_dict)
+
+        word_error_candidates = get_delete_candidates_info(word_splits) + get_transpose_candidates_info(word_splits) + \
+                                get_substitution_candidates_info(word_splits) + get_insert_candidates_info(word_splits)
+
+        spelling_error_candidates.writelines('{}: {}\n'.format(word_in_dict, word_error_candidates))
+
+        print(i);
+        i += 1;
+        #if i > 10:
+        #    break;
+
+with open('delete_matrix.txt', 'w') as delete_matrix_file:
+    for row in delete_matrix:
+        delete_matrix_file.write('{}\n'.format(row))
+
+with open('transpose_matrix.txt', 'w') as transpose_matrix_file:
+    for row in transpose_matrix:
+        transpose_matrix_file.write('{}\n'.format(row))
+
+with open('substitution_matrix.txt', 'w') as substitution_matrix_file:
+    for row in substitution_matrix:
+        substitution_matrix_file.write('{}\n'.format(row))
+
+with open('insert_matrix.txt', 'w') as insert_matrix_file:
+    for row in insert_matrix:
+        insert_matrix_file.write('{}\n'.format(row))
