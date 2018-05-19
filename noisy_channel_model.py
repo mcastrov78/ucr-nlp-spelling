@@ -8,16 +8,27 @@ class NoisyChannelModel:
         self.substitution_matrix = [[0 for i in letters_range] for j in letters_range]
         self.insert_matrix = [[0 for i in letters_range] for j in letters_range]
 
+    # get all possibilities of splitting the word up in 2 pieces
     def get_splits(self, word):
         splits = []
 
         for i in range(len(word) + 1):
             splits.append((word[:i], word[i:]))
 
-        print('Splits ({}): {}'.format(len(splits), splits))
+        #print('Splits ({}): {}'.format(len(splits), splits))
 
         return splits
 
+    # increase counter for coordinates x, y  in matrix
+    def increase_matrix_counter(self, matrix, x, y):
+        # ignore vowels with accents and other characters not in 'letters'
+        x_for_letter = self.letters.find(x)
+        y_for_letter = self.letters.find(y)
+        if x_for_letter >= 0 and y_for_letter >= 0:
+            matrix[x_for_letter][y_for_letter] += 1
+
+    # del[X, Y] = Deletion of Y after X
+    # Y (Deleted Letter)
     def get_delete_candidates_info(self, splits):
         deletes = []
 
@@ -25,46 +36,31 @@ class NoisyChannelModel:
             if right:
                 if len(left) > 0:
                     word_with_delete = left + right[1:]
-                    x = left[-1:]
-                    y = right[0]
-                    # print(x, y)
-
+                    self.increase_matrix_counter(self.delete_matrix, left[-1:], right[0])
                     deletes.append(word_with_delete)
 
-                    # ignore vowels with accents and other characters not in 'letters'
-                    x_for_letter = self.letters.find(x)
-                    y_for_letter = self.letters.find(y)
-                    if x_for_letter >= 0 and y_for_letter >= 0:
-                        self.delete_matrix[x_for_letter][y_for_letter] += 1
-
-        print('Deletes ({}): {}'.format(len(deletes), deletes))
-        print('delete_matrix:', self.delete_matrix)
+        #print('Deletes ({}): {}'.format(len(deletes), deletes))
+        #print('delete_matrix:', self.delete_matrix)
 
         return deletes
 
+    # rev[X, Y] = Reversal of XY
     def get_transpose_candidates_info(self, splits):
         transposes = []
 
         for left, right in splits:
             if len(right) > 1:
                 word_with_transpose = left + right[1] + right[0] + right[2:]
-                x = right[0]
-                y = right[1]
-                # print(x, y)
-
+                self.increase_matrix_counter(self.transpose_matrix, right[0], right[1])
                 transposes.append(word_with_transpose)
 
-                # ignore vowels with accents and other characters not in 'letters'
-                x_for_letter = self.letters.find(x)
-                y_for_letter = self.letters.find(y)
-                if x_for_letter >= 0 and y_for_letter >= 0:
-                    self.transpose_matrix[x_for_letter][y_for_letter] += 1
-
-        print('Transposes ({}): {}'.format(len(transposes), transposes))
-        print('transpose_matrix:', self.transpose_matrix)
+        #print('Transposes ({}): {}'.format(len(transposes), transposes))
+        #print('transpose_matrix:', self.transpose_matrix)
 
         return transposes
 
+    # sub[X, Y] = Substitution of X(incorrect) for Y(correct)
+    # Y(correct)
     def get_substitution_candidates_info(self, splits):
         substitutions = []
 
@@ -72,23 +68,16 @@ class NoisyChannelModel:
             if right:
                 for char in self.letters:
                     word_with_substitution = left + char + right[1:]
-                    x = char
-                    y = right[0]
-                    # print(x, y)
-
+                    self.increase_matrix_counter(self.substitution_matrix, char, right[0])
                     substitutions.append(word_with_substitution)
 
-                    # ignore vowels with accents and other characters not in 'letters'
-                    x_for_letter = self.letters.find(x)
-                    y_for_letter = self.letters.find(y)
-                    if x_for_letter >= 0 and y_for_letter >= 0:
-                        self.substitution_matrix[x_for_letter][y_for_letter] += 1
-
-        print('Substitutions ({}): {}'.format(len(substitutions), substitutions))
-        print('substitution_matrix:', self.substitution_matrix)
+        #print('Substitutions ({}): {}'.format(len(substitutions), substitutions))
+        #print('substitution_matrix:', self.substitution_matrix)
 
         return substitutions
 
+    # add[X, Y] = Insertion of Y after X
+    # Y (Inserted Letter)
     def get_insert_candidates_info(self, splits):
         inserts = []
 
@@ -96,20 +85,11 @@ class NoisyChannelModel:
             for char in self.letters:
                 if left:
                     word_with_insert = left + char + right
-                    x = left[-1:]
-                    y = char
-                    # print(x, y)
-
+                    self.increase_matrix_counter(self.insert_matrix, left[-1:], char)
                     inserts.append(word_with_insert)
 
-                    # ignore vowels with accents and other characters not in 'letters'
-                    x_for_letter = self.letters.find(x)
-                    y_for_letter = self.letters.find(y)
-                    if x_for_letter >= 0 and y_for_letter >= 0:
-                        self.insert_matrix[x_for_letter][y_for_letter] += 1
-
-        print('Inserts ({}): {}'.format(len(inserts), inserts))
-        print('insert_matrix:', self.insert_matrix)
+        #print('Inserts ({}): {}'.format(len(inserts), inserts))
+        #print('insert_matrix:', self.insert_matrix)
 
         return inserts
 
