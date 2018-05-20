@@ -57,3 +57,15 @@ class DBSupport:
             frequency = result[0]
 
         return frequency
+
+    def get_substring_frequency(self, substring):
+        frequency = 0
+
+        self.cursor.execute('SELECT SUM(frequency) FROM language_model where word like ? order by word', ['%' + substring + '%'])
+        result = self.cursor.fetchone()
+        if result:
+            frequency = result[0]
+
+        return frequency
+
+

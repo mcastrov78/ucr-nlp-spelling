@@ -30,6 +30,7 @@ class LanguageModel:
     def create_language_model(self, corpus_filename, dictionary):
         # in a Counter elements are stored as dictionary keys and their counts are stored as dictionary values
         valid_words_in_comments = Counter()
+        self.total_of_tokens = 0
         i = 0
 
         with open(corpus_filename, 'r', encoding=self.FILE_ENCODING) as comments:
@@ -38,7 +39,6 @@ class LanguageModel:
                 line = line[1:].lower()
 
                 # language model will only contain words in comments that are part of the dictionary
-                self.total_of_tokens = 0
                 for word in word_tokenize(line):
                     self.total_of_tokens += 1
                     # if word is not in dictionary it adds to <UNK> count
@@ -49,13 +49,12 @@ class LanguageModel:
 
                 i += 1
                 if (i % 10000) == 0:
-                    print(i)
+                    print("Modelo de Lenguaje: ", i)
                 #if i >= 10000:
                 #    break
 
-        print('Ultima línea: ', i)
+        print('Número total de líneas en el corpus: : ', i - 1)
         print('Número total de tokens en el corpus: ', self.total_of_tokens)
         print('Número total de palabras verificadas en diccionario: ', len(valid_words_in_comments) - 1)
-        # print("Palabras en comentarios: ", words_in_comments)
 
         return valid_words_in_comments
