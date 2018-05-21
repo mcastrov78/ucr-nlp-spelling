@@ -2,10 +2,11 @@ import sqlite3
 
 
 class DBSupport:
+    DB_FILENAME = 'language_model.db'
 
     def __init__(self):
         # DB will be used to avoid loading all data every time
-        self.connection = sqlite3.connect('language_model.db')
+        self.connection = sqlite3.connect(self.DB_FILENAME)
         self.cursor = self.connection.cursor()
 
     def init_db(self):

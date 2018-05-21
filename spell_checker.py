@@ -3,6 +3,9 @@ import db_support
 import language_model
 import noisy_channel_model
 
+DICTIONARY_FILE = 'diccionarioCompletoEspañolCR.txt'
+CORPUS_FILE = 'datos_original.txt'
+
 # arguments handling and help
 parser = argparse.ArgumentParser()
 parser.add_argument('--lang', help='build or re-build the Language Model',
@@ -12,17 +15,15 @@ parser.add_argument('--channel', help='build or re-build the Noisy Channel Model
 parser.add_argument("word", help="word to spell check")
 args = parser.parse_args()
 
-# counter for the total of tokens processed from the corpus
-total_tokens_in_corpus = 0
-
-# create Language Model, Dictionary, and Noisy Chanel Model
+# create Language Model, Dictionary, and Noisy Chanel Model instances
 languageModel = language_model.LanguageModel();
-dictionary = languageModel.load_dictionary('diccionarioCompletoEspañolCR.txt')
+dictionary = languageModel.load_dictionary(DICTIONARY_FILE)
 noisy_channel = noisy_channel_model.NoisyChannelModel(dictionary)
 
 # initialize DB support
 db = db_support.DBSupport();
 
+# build or re-build the Language Model
 if args.lang:
     print('Creando Modelo de Lenguaje ...')
 
@@ -31,36 +32,23 @@ if args.lang:
     db.init_db()
 
     # load dictionary and load de language model
-    words_in_comments = languageModel.create_language_model('datos_original.txt', dictionary)
+    words_in_comments = languageModel.create_language_model(CORPUS_FILE, dictionary)
 
-    # persist the Language Model
+    # persist the Language Model on the DB
     db.persist_counter(words_in_comments, languageModel.total_of_tokens)
 
+    # close DB
+    db.close_db()
+
+# build or re-build the Noisy Channel Model
 if args.channel:
     print('Creando Modelo del Canal Sucio ...')
 
     # configure Noisy Channel Model
     noisy_channel.generate_errors_and_matrixes()
 
-# process input word
+# process input word entered as parameter
 chosen_word = args.word.lower()
-chosen_word_frequency = db.get_word_frequency(chosen_word)
-
-# if word is not found it must be assumed as <UNK>
-if chosen_word_frequency == 0:
-    chosen_word_frequency = db.get_word_frequency(languageModel.UNKNOWN_WORD)
-    chosen_word_probability = db.get_word_probability(languageModel.UNKNOWN_WORD)
-else:
-    chosen_word_probability = db.get_word_probability(chosen_word)
-
-total_frequency_in_language_model = db.get_language_model_size()
-
-# close DB
-db.close_db()
 
 print('Palabra: ', chosen_word)
-print('Modelo de Lenguaje - Total de Frecuencias: ', total_frequency_in_language_model)
-print('Modelo de Lenguaje - Frecuencia de la palabra: ', chosen_word_frequency)
-print('Modelo de Lenguaje - Probabilidad de la palabra: ', chosen_word_probability)
-
-noisy_channel.generate_errors(chosen_word)
+print('Correción: ', noisy_channel.get_best_correction(chosen_word))

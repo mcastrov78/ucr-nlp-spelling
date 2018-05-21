@@ -2,9 +2,11 @@ import language_model
 import db_support
 import ast
 
+
 class NoisyChannelModel:
 
     LETTERS = 'abcdefghijklmnopqrstuvwxyzáéíóúüñ'
+    SPELLING_ERROR_CANDIDATES_FILE = 'spelling_error_candidates.txt'
     DELETE_MATRIX_FILE = 'delete_matrix.txt'
     TRANSPOSE_MATRIX_FILE = 'transpose_matrix.txt'
     SUBSTITUTION_MATRIX_FILE = 'substitution_matrix.txt'
@@ -12,6 +14,7 @@ class NoisyChannelModel:
 
     def __init__(self, dictionary):
         self.dictionary = dictionary
+        self.db = db_support.DBSupport()
 
         letters_range = range(len(self.LETTERS))
         self.delete_matrix = [[0 for i in letters_range] for j in letters_range]
@@ -163,10 +166,11 @@ class NoisyChannelModel:
 
         return inserts_non_word_candidates, inserts_word_candidates
 
+    # generate all error candidates for all words in dictionary and save a file with that info and one per matrix
     def generate_errors_and_matrixes(self):
         print("Modelo del Canal Ruidoso - Total de palabras en diccionario:", len(self.dictionary))
 
-        with open('spelling_error_candidates.txt', 'w') as spelling_error_candidates:
+        with open(self.SPELLING_ERROR_CANDIDATES_FILE, 'w') as spelling_error_candidates:
             i = 0
             for word_in_dict in self.dictionary:
                 word_splits = self.get_splits(word_in_dict)
@@ -185,6 +189,7 @@ class NoisyChannelModel:
                 #if i > 10:
                 #    break
 
+        # write all confusion matrixes to file
         with open(self.DELETE_MATRIX_FILE, 'w') as delete_matrix_file:
             for row in self.delete_matrix:
                 delete_matrix_file.write('{}\n'.format(row))
@@ -201,86 +206,54 @@ class NoisyChannelModel:
             for row in self.insert_matrix:
                 insert_matrix_file.write('{}\n'.format(row))
 
-    def generate_errors(self, word):
+    # generate all possible correction candidates for misspelled word and their probabilities
+    def generate_correction_probabilities(self, word):
         word_splits = self.get_splits(word)
-        probabilites = dict()
+        correction_probabilities = dict()
 
         # load matrixes from from files
         self.load_matrixes()
-        # initialize DB support
-        db = db_support.DBSupport();
 
-        # process DELETE probabilities using delete candidates for word
+        # process DELETE probabilities using INSERT candidates for word
         insert_candidates = self.get_insert_candidates_info(word_splits, True, False)[1]
         for insert_candidate in insert_candidates:
             #print('Insert Candidate: {}. Values: {}'.format(insert_candidate, insert_candidates[insert_candidate]))
-            # search in opposite operation matrix:sert delete
-            value = self.get_value_from_matrix(self.delete_matrix, insert_candidates[insert_candidate][0], insert_candidates[insert_candidate][1])
-            #print("Matrix Value: ", value)
-
-            count_value = db.get_substring_frequency(insert_candidates[insert_candidate][0] + insert_candidates[insert_candidate][1])
-            print("Count value: ", count_value)
-            channel_probability = value / count_value
-            language_probability = db.get_word_probability(insert_candidate)
-            probabilites[insert_candidate] = channel_probability * language_probability
-
-            #print("Probability: {} * {} =  {}".format(channel_probability, language_probability, probabilites[insert_candidate]))
+            # search in opposite operation's matrix: delete
+            confusion_value = self.get_value_from_matrix(self.delete_matrix, insert_candidates[insert_candidate][0], insert_candidates[insert_candidate][1])
+            substring_for_count = insert_candidates[insert_candidate][0] + insert_candidates[insert_candidate][1]
+            correction_probabilities[insert_candidate] = self.get_correction_probability(insert_candidate, confusion_value, substring_for_count)
 
         # process transpose candidates
         transpose_candidates = self.get_transpose_candidates_info(word_splits, True, False)[1]
         for transpose_candidate in transpose_candidates:
             #print('Transpose Candidate: {}. Values: {}'.format(transpose_candidate, transpose_candidates[transpose_candidate]))
             # search in same operation matrix but reversing x and y coordinates
-            value = self.get_value_from_matrix(self.transpose_matrix, transpose_candidates[transpose_candidate][1], transpose_candidates[transpose_candidate][0])
-            #print("Matrix Value: ", value)
-
-            count_value = db.get_substring_frequency(transpose_candidates[transpose_candidate][1] + transpose_candidates[transpose_candidate][0])
-            print("Count value: ", count_value)
-            channel_probability = value / count_value
-            language_probability = db.get_word_probability(transpose_candidate)
-            probabilites[transpose_candidate] = channel_probability * language_probability
-
-            #print("Probability: {} * {} =  {}".format(channel_probability, language_probability,
-            #                                          probabilites[transpose_candidate]))
+            confusion_value = self.get_value_from_matrix(self.transpose_matrix, transpose_candidates[transpose_candidate][1], transpose_candidates[transpose_candidate][0])
+            substring_for_count = transpose_candidates[transpose_candidate][1] + transpose_candidates[transpose_candidate][0]
+            correction_probabilities[transpose_candidate] = self.get_correction_probability(transpose_candidate, confusion_value, substring_for_count)
 
         # process substitution candidates
         substitition_candidates = self.get_substitution_candidates_info(word_splits, True, False)[1]
         for substitition_candidate in substitition_candidates:
             #print('Substitution Candidate: {}. Values: {}'.format(substitition_candidate, substitition_candidates[substitition_candidate]))
             # search in same operation matrix but reversing x and y coordinates
-            value = self.get_value_from_matrix(self.substitution_matrix, substitition_candidates[substitition_candidate][1], substitition_candidates[substitition_candidate][0])
-            #print("Matrix Value: ", value)
-
-            count_value = db.get_substring_frequency(substitition_candidates[substitition_candidate][0])
-            print("Count value: ", count_value)
-            channel_probability = value / count_value
-            language_probability = db.get_word_probability(substitition_candidate)
-            probabilites[substitition_candidate] = channel_probability * language_probability
-
-            #print("Probability: {} * {} =  {}".format(channel_probability, language_probability,
-            #                                          probabilites[substitition_candidate]))
+            confusion_value = self.get_value_from_matrix(self.substitution_matrix, substitition_candidates[substitition_candidate][1], substitition_candidates[substitition_candidate][0])
+            substring_for_count = substitition_candidates[substitition_candidate][0]
+            correction_probabilities[substitition_candidate] = self.get_correction_probability(substitition_candidate, confusion_value, substring_for_count)
 
         # process INSERT probabilities using delete candidates for word
         delete_candidates = self.get_delete_candidates_info(word_splits, True, False)[1]
         for delete_candidate in delete_candidates:
             #print('Delete Candidate: {}. Values: {}'.format(delete_candidate, delete_candidates[delete_candidate]))
             # search in opposite operation matrix: insert
-            value = self.get_value_from_matrix(self.insert_matrix, delete_candidates[delete_candidate][0], delete_candidates[delete_candidate][1])
-            #print("Matrix Value: ", value)
+            confusion_value = self.get_value_from_matrix(self.insert_matrix, delete_candidates[delete_candidate][0], delete_candidates[delete_candidate][1])
+            substring_for_count = delete_candidates[delete_candidate][0]
+            correction_probabilities[substitition_candidate] = self.get_correction_probability(delete_candidate, confusion_value, substring_for_count)
 
-            # calculate insert probability
-            count_value = db.get_substring_frequency(delete_candidates[delete_candidate][0])
-            print("Count value: ", count_value)
-            channel_probability = value / count_value
-            language_probability = db.get_word_probability(insert_candidate)
-            probabilites[delete_candidate] = channel_probability * language_probability
+        print("PROBABILIDADES: ", correction_probabilities)
+        return correction_probabilities
 
-            #print("Probability: {} * {} =  {}".format(channel_probability, language_probability,
-            #                                          probabilites[delete_candidate]))
-
-        print("PROBABILIDADES: ", probabilites)
-        print("CORRECCIÓN: ", self.get_higher_probability_correction(probabilites))
-
+    # load matrix from ffile
     def load_matrix_from_file(self, filename, matrix):
         with open(filename, 'r', encoding= language_model.LanguageModel.FILE_ENCODING) as matrix_file:
             i = 0
@@ -288,23 +261,39 @@ class NoisyChannelModel:
                 matrix[i] = ast.literal_eval(line)
                 i += 1
 
+    # load all matrixes
     def load_matrixes(self):
         self.load_matrix_from_file(self.DELETE_MATRIX_FILE, self.delete_matrix)
         self.load_matrix_from_file(self.TRANSPOSE_MATRIX_FILE, self.transpose_matrix)
         self.load_matrix_from_file(self.SUBSTITUTION_MATRIX_FILE, self.substitution_matrix)
         self.load_matrix_from_file(self.INSERT_MATRIX_FILE, self.insert_matrix)
 
+    # get value for coordinates x, y  in matrix
     def get_value_from_matrix(self, matrix, x, y):
         value = 0
         x_for_letter = self.LETTERS.find(x)
         y_for_letter = self.LETTERS.find(y)
 
-        print('x = {} ({}), y = {} ({})'.format(x, x_for_letter, y, y_for_letter))
+        #print('x = {} ({}), y = {} ({})'.format(x, x_for_letter, y, y_for_letter))
         if x_for_letter >= 0 and y_for_letter >= 0:
             value = matrix[x_for_letter][y_for_letter]
 
         return value
 
+    # implements formula P(x|w) = del[xi-1;wi] / count[xi-1wi]
+    def get_correction_probability(self, correction_candidate, confusion_value, substring_for_count):
+        # channel probability P(x|w) = del[xi-1;wi] / count[xi-1wi]
+        count_value = self.db.get_substring_frequency(substring_for_count)
+        channel_probability = confusion_value / count_value
+
+        # language probability P(w)
+        language_probability = self.db.get_word_probability(correction_candidate)
+
+        # correction probability P(x|w)P(w)
+        #print("Probability: {} * {} =  {}".format(channel_probability, language_probability, channel_probability * language_probability)
+        return channel_probability * language_probability
+
+    # get the most likely correct for misspelled word based on the highest priority
     def get_higher_probability_correction(self, probabilites):
         higher_probability_value = 0
         higher_probability_word = ""
@@ -315,3 +304,8 @@ class NoisyChannelModel:
                 higher_probability_word = probability_key
 
         return higher_probability_word
+
+    # get the most likely correct for misspelled word
+    def get_best_correction(self, word):
+        correction_probabilities = self.generate_correction_probabilities(word)
+        return self.get_higher_probability_correction(correction_probabilities)
